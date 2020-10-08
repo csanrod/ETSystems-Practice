@@ -9,18 +9,6 @@
 #include <string.h>
 #include <sys/time.h>
 
-// Función a ejecutar en el hilo. Imprime el id del thread.
-void *threadfunction (void *arg)
-{
-    printf("Hello, I am a thread #%d.\n", *(int *)arg);
-    // Código random para que tarde en ejecutarse
-    volatile unsigned long long i;
-    for (i =0; i < 1000000000ULL; i++);
-    // Fin de la ejecución del código random
-    printf("Bye! Thread #%d with number.\n", *(int *)arg);
-    return 0;
-}
-
 // Función que devuelve los segundos y microsegundos de su llamada
 // además, devuelve el tiempo de ejecución transcurrido entre la llamada anterior
 // y la actual, SIEMPRE Y CUANDO, en la llamada anterior time_exec = 0
@@ -32,7 +20,8 @@ void get_time (struct timeval current, long int *s, long int *us, double *time_e
     *time_exec = *s + ((double)*us/1000000) - *time_exec;
 }
 
-int main (void)
+// Función a ejecutar en el hilo. Imprime el id del thread.
+void *threadfunction (void *arg)
 {
     // Inicializaciones temporales
     struct timeval current_time;
@@ -41,6 +30,21 @@ int main (void)
     // Capturamos el tiempo antes de la ejecución
     get_time(current_time, &seconds, &u_seconds, &time_exe);
 
+    printf("Hello, I am a thread #%d.\n", *(int *)arg);
+    // Código random para que tarde en ejecutarse
+    volatile unsigned long long i;
+    for (i =0; i < 1000000000ULL; i++);
+    // Fin de la ejecución del código random
+    printf("Bye! Thread #%d with number.\n", *(int *)arg);
+
+    // Capturamos el tiempo DESPUES de la ejecución e imprimimos resultado
+    get_time(current_time, &seconds, &u_seconds, &time_exe);
+    printf("El tiempo transcurrido para #%d es de %lf s...\n",*(int *)arg,time_exe);
+    return 0;
+}
+
+int main (void)
+{
     // Creamos los id de los hilos
     pthread_t thread1, thread2, thread3, thread4;
     // Creamos los argumentos para pasar a los hilos
@@ -62,8 +66,4 @@ int main (void)
     pthread_join(thread2, NULL);
     pthread_join(thread3, NULL);
     pthread_join(thread4, NULL);
-
-    // Capturamos el tiempo DESPUES de la ejecución e imprimimos resultado
-    get_time(current_time, &seconds, &u_seconds, &time_exe);
-    printf("\nEl tiempo transcurrido es de %lf s...\n", time_exe);
 }
