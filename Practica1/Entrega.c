@@ -4,7 +4,7 @@
 #include <sys/time.h>
 #include <unistd.h>
 
-#define STRESS_VALUE 500000000ULL
+#define STRESS_VALUE 300000000ULL
 
 void get_time (struct timeval current, long int *s, long int *us, double *time_exec){
     // Función que devuelve los segundos y microsegundos de su llamada
@@ -38,7 +38,7 @@ void *threadfunction (void *arg){
             printf("Violacion del ciclo de ejecución thread #%d.\t",*(int *)arg);
         }else{
             if (time_exe < 0.9)
-                usleep(900000-(time_exe*100000));                 
+                usleep(900000-(time_exe*1000000));                 
             printf("Thread: #%d\t", *(int *)arg);  
         }
         printf("Time: %lf\n",time_exe);      
