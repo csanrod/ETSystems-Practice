@@ -1,10 +1,14 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #define TIME_EXE 60
 #define TIME_WAIT_NS 1000000
@@ -24,22 +28,28 @@ int get_mask(cpu_set_t *cpu_st, pthread_t *thrd, int *core){
 }
 
 void *latency_calculator (void *arg){
-    struct timespec time_getter;
+
+    struct timespec time_sleep;
+    time_sleep.tv_sec = 0;
+    time_sleep.tv_nsec = TIME_WAIT_NS;
+
+    struct timespec time_latency;
     long int value = 0, latency = 0;
     printf(" ----------\n");
-    clock_gettime(CLOCK_MONOTONIC, &time_getter);
+    clock_gettime(CLOCK_MONOTONIC, &time_latency);
     printf("TIME PRE nanosleep\n");
-    printf("seconds: %ld\tnanoseconds: %ld\n", time_getter.tv_sec, time_getter.tv_nsec);
-    value = time_getter.tv_nsec;
-    clock_nanosleep(CLOCK_MONOTONIC, 0, (struct timespec *) arg, NULL);
-    clock_gettime(CLOCK_MONOTONIC, &time_getter);
+    printf("seconds: %ld\tnanoseconds: %ld\n", time_latency.tv_sec, time_latency.tv_nsec);
+    value = time_latency.tv_nsec;
+    clock_nanosleep(CLOCK_MONOTONIC, 0, &time_sleep, NULL);
+    clock_gettime(CLOCK_MONOTONIC, &time_latency);
     printf("TIME POS nanosleep\n");
-    printf("seconds: %ld\tnanoseconds: %ld\n", time_getter.tv_sec, time_getter.tv_nsec);
-    value = time_getter.tv_nsec - value;
+    printf("seconds: %ld\tnanoseconds: %ld\n", time_latency.tv_sec, time_latency.tv_nsec);
+    value = time_latency.tv_nsec - value;
     latency = value - TIME_WAIT_NS;
     printf("\ndiff = %ld\n", value);
     printf("LATENCY = %ld\n", latency);
     printf(" ----------\n");
+    *(long int*) arg = latency;
 }
 
 int main (void){
@@ -48,24 +58,39 @@ int main (void){
     int sched_policy = SCHED_FIFO;
     struct sched_param param;
     param.sched_priority = 99;
+
+    struct timespec time_exe;
+    clock_gettime(CLOCK_MONOTONIC, &time_exe);
+    double init_time = time_exe.tv_sec + ((double)time_exe.tv_nsec/1000000000);
+    double current_time = init_time;
+    printf("TIME:%lf\n",init_time);
     
     pthread_t threads[number_of_cores];
 
     cpu_set_t cpuset;
+
+    static int32_t latency_target_value = 0;
+    int latency_target_fd = open("/dev/cpu_dma_latency", O_RDWR);
+    int err = write(latency_target_fd, &latency_target_value, 4);
+
+    long int latency[number_of_cores], current_latency = 0;
     
-    struct timespec nano_time;
-    nano_time.tv_sec = 0;
-    nano_time.tv_nsec = TIME_WAIT_NS;
-
-    for (int i = 0; i<number_of_cores; i++){
-        printf("Launch thread %d\n", i+1);
-        pthread_create(&threads[i], NULL, latency_calculator, &nano_time);
-        pthread_setschedparam(threads[i], sched_policy, &param);
-        set_mask(&cpuset, &threads[i], &i);
-        //get_mask(&cpuset, &threads[i], &i);       
-        pthread_join(threads[i], NULL);
-        param.sched_priority--;
+    while((current_time-init_time) < TIME_EXE){
+        for (int i = 0; i<number_of_cores; i++){
+            printf("Launch thread %d\n", i+1);
+            pthread_create(&threads[i], NULL, latency_calculator, &current_latency);
+            pthread_setschedparam(threads[i], sched_policy, &param);
+            set_mask(&cpuset, &threads[i], &i);
+            //get_mask(&cpuset, &threads[i], &i);       
+            pthread_join(threads[i], NULL);
+            latency[i] = current_latency;
+            param.sched_priority--;
+        }
+        for (int core = 0; core < number_of_cores; core++)
+            printf("[%d]\tlatencia media = %ld ns.  |   max = %ld ns\n",core,latency[core],latency[core]);
+        clock_gettime(CLOCK_MONOTONIC, &time_exe);
+        current_time = time_exe.tv_sec + ((double)time_exe.tv_nsec/1000000000);
     }
-
+        
     return 0;
 }
