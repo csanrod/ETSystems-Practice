@@ -31,7 +31,7 @@ int get_mask(cpu_set_t *cpu_st, pthread_t *thrd, int *core){
 
 void *latency_calculator (void *arg){
     // -- Thread function, here we calculate the latency. We use clock_nanosleep for it. -- //
-    struct timespec time_sleep, time_latency;;
+    struct timespec time_sleep, time_latency;
     time_sleep.tv_sec = 0;
     time_sleep.tv_nsec = TIME_WAIT_NS;
     long int time_thread = 0, latency = 0;
